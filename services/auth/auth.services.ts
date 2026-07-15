@@ -53,11 +53,7 @@ class AuthServices {
     return { success: true, message: "OTP resent successfully.", data };
   }
 
-  async getUser(client: SupabaseClient): Promise<AuthResult<UserData>> {
-    const { data, error } = await client.auth.getUser();
-    if (error) return { success: false, message: error.message };
-    return { success: true, message: "User fetched.", data };
-  }
+
 }
 
 export default new AuthServices();

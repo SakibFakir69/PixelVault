@@ -1,10 +1,11 @@
 import { createSupabaseServerClient } from "@/lib/supabase/supabase.server";
 import authServices from "@/services/auth/auth.services";
 import { NextResponse, NextRequest } from "next/server";
+import type { EmailOtpType } from "@supabase/supabase-js";
 
 export async function POST(req: NextRequest) {
   try {
-    let body: { email?: string };
+    let body: { email?: string; token?: string; type?: EmailOtpType };
     try {
       body = await req.json();
     } catch {
@@ -14,27 +15,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { email } = body;
+    const { email, token, type = "email" } = body;
 
-    if (!email) {
+    if (!email || !token) {
       return NextResponse.json(
-        { success: false, message: "Email is required." },
+        { success: false, message: "Email and token are required." },
         { status: 400 }
       );
     }
 
-    const redirectTo = `${req.nextUrl.origin}/reset-password`;
-
     const supabase = await createSupabaseServerClient();
-    const result = await authServices.sendResetPasswordEmail(supabase, email, redirectTo);
+    const result = await authServices.verifyOtp(supabase, email, token, type);
 
-   
-    return NextResponse.json(
-      { success: true, message: "If that email exists, a reset link has been sent." },
-      { status: 200 }
-    );
+    return NextResponse.json(result, { status: result.success ? 200 : 400 });
   } catch (error) {
-    console.error("POST /api/auth/reset-password error:", error);
+    console.error("POST /api/auth/verify-otp error:", error);
     return NextResponse.json(
       { success: false, message: "Internal Server Error" },
       { status: 500 }

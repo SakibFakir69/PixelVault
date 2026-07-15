@@ -4,7 +4,7 @@ import { NextResponse, NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
-    let body: { email?: string };
+    let body: { email?: string; password?: string };
     try {
       body = await req.json();
     } catch {
@@ -14,27 +14,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { email } = body;
+    const { email, password } = body;
 
-    if (!email) {
+    if (!email || !password) {
       return NextResponse.json(
-        { success: false, message: "Email is required." },
+        { success: false, message: "Email and password are required." },
         { status: 400 }
       );
     }
 
-    const redirectTo = `${req.nextUrl.origin}/reset-password`;
+    if (password.length < 6) {
+      return NextResponse.json(
+        { success: false, message: "Password must be at least 6 characters." },
+        { status: 400 }
+      );
+    }
 
     const supabase = await createSupabaseServerClient();
-    const result = await authServices.sendResetPasswordEmail(supabase, email, redirectTo);
+    const result = await authServices.signUp(supabase, email, password);
 
-   
-    return NextResponse.json(
-      { success: true, message: "If that email exists, a reset link has been sent." },
-      { status: 200 }
-    );
+    return NextResponse.json(result, { status: result.success ? 201 : 400 });
   } catch (error) {
-    console.error("POST /api/auth/reset-password error:", error);
+    console.error("POST /api/auth/sign-up error:", error);
     return NextResponse.json(
       { success: false, message: "Internal Server Error" },
       { status: 500 }
