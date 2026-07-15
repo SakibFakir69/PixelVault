@@ -1,118 +1,63 @@
-import { supabaseConfig } from "@/lib/supabase/supabase";
+import type { SupabaseClient, EmailOtpType, User, Session } from "@supabase/supabase-js";
 
-interface IAuthServices {
-  email: string;
-  password: string;
-  otp?: string | number;
+interface AuthResult<T = undefined> {
+  success: boolean;
+  message: string;
+  data?: T;
 }
+
+type AuthData = { user: User | null; session: Session | null };
+type UserData = { user: User | null };
 
 class AuthServices {
-  private email: string;
-  private password: string;
-  private otp?: string | number;
-
-  constructor({ email, password, otp }: IAuthServices) {
-    this.email = email;
-    this.password = password;
-    this.otp = otp;
+  async signUp(client: SupabaseClient, email: string, password: string): 
+  Promise<AuthResult<AuthData>> {
+    const { data, error } = await client.auth.signUp({ email, password });
+    if (error) return { success: false, message: error.message };
+    return { success: true, message: "Account created successfully.", data };
   }
 
-  async signUp() {
-    const { data, error } = await supabaseConfig.auth.signUp({
-      email: this.email,
-      password: this.password,
-    });
-
-    if (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
-    return {
-      success: true,
-      message: "Account created successfully.",
-      data,
-    };
+  async signIn(client: SupabaseClient, email: string, password: string): Promise<AuthResult<AuthData>> {
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
+    if (error) return { success: false, message: error.message };
+    return { success: true, message: "Login successful.", data };
   }
 
-  async signIn() {
-    const { data, error } =
-      await supabaseConfig.auth.signInWithPassword({
-        email: this.email,
-        password: this.password,
-      });
-
-    if (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
-    return {
-      success: true,
-      message: "Login successful.",
-      data,
-    };
+  async signOut(client: SupabaseClient): Promise<AuthResult> {
+    const { error } = await client.auth.signOut();
+    if (error) return { success: false, message: error.message };
+    return { success: true, message: "Logged out successfully." };
   }
 
-  async signOut() {
-    const { error } = await supabaseConfig.auth.signOut();
-
-    if (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
-    return {
-      success: true,
-      message: "Logged out successfully.",
-    };
+  async sendResetPasswordEmail(client: SupabaseClient, email: string, redirectTo: string): Promise<AuthResult> {
+    const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) return { success: false, message: error.message };
+    return { success: true, message: "Password reset email sent." };
   }
 
-  async sendResetPasswordEmail() {
-    const { error } = await supabaseConfig.auth.resetPasswordForEmail(
-      this.email,
-      {
-        redirectTo: `${window.location.origin}/reset-password`,
-      }
-    );
-
-    if (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
-    return {
-      success: true,
-      message: "Password reset email sent.",
-    };
+  async updatePassword(client: SupabaseClient, newPassword: string): Promise<AuthResult<UserData>> {
+    const { data, error } = await client.auth.updateUser({ password: newPassword });
+    if (error) return { success: false, message: error.message };
+    return { success: true, message: "Password updated successfully.", data };
   }
 
-  async updatePassword(newPassword: string) {
-    const { data, error } = await supabaseConfig.auth.updateUser({
-      password: newPassword,
-    });
+  async verifyOtp(client: SupabaseClient, email: string, token: string, type: EmailOtpType = "email"): Promise<AuthResult<AuthData>> {
+    const { data, error } = await client.auth.verifyOtp({ email, token, type });
+    if (error) return { success: false, message: error.message };
+    return { success: true, message: "OTP verified successfully.", data };
+  }
 
-    if (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
+  async resendOtp(client: SupabaseClient, email: string, type: "signup" | "email_change" = "signup"): Promise<AuthResult<AuthData>> {
+    const { data, error } = await client.auth.resend({ type, email });
+    if (error) return { success: false, message: error.message };
+    return { success: true, message: "OTP resent successfully.", data };
+  }
 
-    return {
-      success: true,
-      message: "Password updated successfully.",
-      data,
-    };
+  async getUser(client: SupabaseClient): Promise<AuthResult<UserData>> {
+    const { data, error } = await client.auth.getUser();
+    if (error) return { success: false, message: error.message };
+    return { success: true, message: "User fetched.", data };
   }
 }
 
-export default AuthServices;
+export default new AuthServices();
