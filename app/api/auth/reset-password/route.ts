@@ -5,6 +5,7 @@ import { NextResponse, NextRequest } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     let body: { email?: string };
+
     try {
       body = await req.json();
     } catch {
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const redirectTo = `${req.nextUrl.origin}/reset-password`;
+    const redirectTo = `${req.nextUrl.origin}/auth/reset-password`;
 
     const supabase = await createSupabaseServerClient();
     const result = await authServices.sendResetPasswordEmail(supabase, email, redirectTo);
