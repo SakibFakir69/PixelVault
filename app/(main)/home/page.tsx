@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   IconPhoto,
   IconFolder,
@@ -16,25 +16,33 @@ import {
   IconUser,
   IconMoon,
   IconLogout,
-  IconCat,
-  IconGhost,
-  IconBallFootball,
   IconX,
 } from "@tabler/icons-react";
+import { supabaseConfig } from "@/lib/supabase/supabase";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type Category = "all" | "animals" | "icons" | "sports";
+interface AssetRow {
+  id: string;
+  category: string;
+  title: string;
+  description: string | null;
+  image_url: string;
+  price: number;
+  tier: string;
+  created_at: string;
+}
 
 interface VaultImage {
   id: string;
   name: string;
   url: string;
-  category: Exclude<Category, "all">;
+  category: string;
   rare: boolean;
-  createdAt: string; // ISO date
+  price: number;
+  createdAt: string;
 }
 
 interface NavItem {
@@ -43,19 +51,6 @@ interface NavItem {
   icon: React.ReactNode;
 }
 
-// ---------------------------------------------------------------------------
-// Mock data — replace with real fetch from your catalog / DB
-// ---------------------------------------------------------------------------
-
-const CATEGORY_META: Record<
-  Exclude<Category, "all">,
-  { label: string; icon: React.ReactNode; count: number }
-> = {
-  animals: { label: "Animals", icon: <IconCat size={16} />, count: 412 },
-  icons: { label: "Icons", icon: <IconGhost size={16} />, count: 288 },
-  sports: { label: "Sports", icon: <IconBallFootball size={16} />, count: 150 },
-};
-
 const NAV_ITEMS: NavItem[] = [
   { key: "all", label: "All images", icon: <IconPhoto size={16} /> },
   { key: "collections", label: "Collections", icon: <IconFolder size={16} /> },
@@ -63,31 +58,84 @@ const NAV_ITEMS: NavItem[] = [
   { key: "trash", label: "Trash", icon: <IconTrash size={16} /> },
 ];
 
-function generateMockImages(count: number): VaultImage[] {
-  const categories: Exclude<Category, "all">[] = ["animals", "icons", "sports"];
-  return Array.from({ length: count }).map((_, i) => ({
-    id: `img_${i + 1}`,
-    name: `Pixel #${String(i + 1).padStart(4, "0")}`,
-    url: `https://picsum.photos/seed/pixel${i}/200/200`,
-    category: categories[i % categories.length],
-    rare: i % 9 === 0,
-    createdAt: new Date(Date.now() - i * 86400000).toISOString(),
-  }));
-}
+const PAGE_SIZE = 60;
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export default function PixelVault() {
-  const [images] = useState<VaultImage[]>(() => generateMockImages(48));
+  const [images, setImages] = useState<VaultImage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [activeNav, setActiveNav] = useState<NavItem["key"]>("all");
-  const [activeCategory, setActiveCategory] = useState<Category>("all");
+  const [activeCategory, setActiveCategory] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [rareOnly, setRareOnly] = useState(false);
   const [sortNewest, setSortNewest] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+
+  // pagination
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchAssets() {
+      setLoading(true);
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error, count } = await supabaseConfig
+        .from("assets")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error(error);
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      const mapped: VaultImage[] = (data as AssetRow[]).map((row) => ({
+        id: row.id,
+        name: row.title,
+        url: row.image_url,
+        category: row.category,
+        rare: row.tier === "Rare",
+        price: row.price,
+        createdAt: row.created_at,
+      }));
+
+      setImages(mapped);
+      setTotalCount(count ?? 0);
+      setLoading(false);
+    }
+
+    fetchAssets();
+    return () => {
+      cancelled = true;
+    };
+  }, [page]);
+
+  // build category list + counts dynamically from the loaded page
+  // (for accurate global counts across all 1,173 rows, see note below)
+  const categoryMeta = useMemo(() => {
+    const map = new Map<string, number>();
+    images.forEach((img) => {
+      map.set(img.category, (map.get(img.category) ?? 0) + 1);
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([category, count]) => ({ category, count }));
+  }, [images]);
 
   const filtered = useMemo(() => {
     let result = images;
@@ -119,10 +167,12 @@ export default function PixelVault() {
     setRareOnly(false);
   };
 
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-neutral-950 text-neutral-100">
       {/* Sidebar */}
-      <aside className="flex w-56 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900 p-3">
+      <aside className="flex w-56 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900 p-3 overflow-y-auto">
         <div className="mb-4 flex items-center gap-2 px-1.5">
           <div className="grid h-6 w-6 shrink-0 grid-cols-2 grid-rows-2 overflow-hidden rounded-md">
             <div className="bg-teal-500" />
@@ -154,27 +204,34 @@ export default function PixelVault() {
         </nav>
 
         <div className="mt-4 px-2.5 pb-1.5 text-[11px] uppercase tracking-wide text-neutral-500">
-          Categories
+          Categories (this page)
         </div>
         <div className="flex flex-col gap-0.5">
-          {(Object.keys(CATEGORY_META) as Exclude<Category, "all">[]).map((cat) => {
-            const meta = CATEGORY_META[cat];
-            const active = activeCategory === cat;
+          <button
+            onClick={() => setActiveCategory("all")}
+            className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 text-sm transition-colors ${
+              activeCategory === "all"
+                ? "bg-blue-500/15 text-blue-400"
+                : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+            }`}
+          >
+            <span>All</span>
+            <span className="text-[11px] text-neutral-500">{images.length}</span>
+          </button>
+          {categoryMeta.map(({ category, count }) => {
+            const active = activeCategory === category;
             return (
               <button
-                key={cat}
-                onClick={() => setActiveCategory(active ? "all" : cat)}
+                key={category}
+                onClick={() => setActiveCategory(active ? "all" : category)}
                 className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 text-sm transition-colors ${
                   active
                     ? "bg-blue-500/15 text-blue-400"
                     : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
                 }`}
               >
-                <span className="flex items-center gap-2">
-                  {meta.icon}
-                  {meta.label}
-                </span>
-                <span className="text-[11px] text-neutral-500">{meta.count}</span>
+                <span className="truncate">{category.replace(/_/g, " ")}</span>
+                <span className="text-[11px] text-neutral-500 shrink-0 ml-2">{count}</span>
               </button>
             );
           })}
@@ -189,7 +246,7 @@ export default function PixelVault() {
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
-        <header className="flex shrink-0 items-center gap-2.5 border-b border-neutral-800 px-4 py-3">
+        <header className="flex shrink-0 flex-wrap items-center gap-2.5 border-b border-neutral-800 px-4 py-3">
           <div className="relative max-w-xs flex-1">
             <IconSearch
               size={16}
@@ -235,10 +292,10 @@ export default function PixelVault() {
           </button>
 
           {/* Active filter chips */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {activeCategory !== "all" && (
               <span className="flex items-center gap-1 rounded-full bg-blue-500/15 px-2.5 py-1 text-xs text-blue-400">
-                {CATEGORY_META[activeCategory].label}
+                {activeCategory.replace(/_/g, " ")}
                 <IconX
                   size={12}
                   className="cursor-pointer"
@@ -282,7 +339,7 @@ export default function PixelVault() {
               </div>
               <div className="text-left leading-tight">
                 <div className="text-xs font-medium">Sakib</div>
-                <div className="text-[10px] text-neutral-500">{images.length} images</div>
+                <div className="text-[10px] text-neutral-500">{totalCount} images total</div>
               </div>
               <IconChevronDown size={14} className="text-neutral-500" />
             </button>
@@ -326,7 +383,15 @@ export default function PixelVault() {
 
         {/* Image grid */}
         <main className="flex-1 overflow-y-auto p-4">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="flex h-full items-center justify-center text-neutral-500 text-sm">
+              Loading assets...
+            </div>
+          ) : error ? (
+            <div className="flex h-full items-center justify-center text-red-400 text-sm">
+              Error: {error}
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-neutral-500">
               <IconPhoto size={32} className="mb-2" />
               <p className="text-sm">No images match your filters.</p>
@@ -335,30 +400,53 @@ export default function PixelVault() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-3">
-              {filtered.map((img) => (
-                <div
-                  key={img.id}
-                  className="group relative aspect-square overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
-                >
-                  <img
-                    src={img.url}
-                    alt={img.name}
-                    className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                    style={{ imageRendering: "pixelated" }}
-                    loading="lazy"
-                  />
-                  {img.rare && (
-                    <span className="absolute left-1.5 top-1.5 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-medium text-amber-950">
-                      Rare
-                    </span>
-                  )}
-                  <div className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 to-transparent px-2 py-1.5 text-[11px] text-neutral-200 opacity-0 transition-opacity group-hover:opacity-100">
-                    {img.name}
+            <>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-3">
+                {filtered.map((img) => (
+                  <div
+                    key={img.id}
+                    className="group relative aspect-square overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
+                  >
+                    <img
+                      src={img.url}
+                      alt={img.name}
+                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                      style={{ imageRendering: "pixelated" }}
+                      loading="lazy"
+                    />
+                    {img.rare && (
+                      <span className="absolute left-1.5 top-1.5 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-medium text-amber-950">
+                        Rare
+                      </span>
+                    )}
+                    <div className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 to-transparent px-2 py-1.5 text-[11px] text-neutral-200 opacity-0 transition-opacity group-hover:opacity-100">
+                      {img.name} · {img.price === 0 ? "Free" : `$${img.price}`}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              <div className="mt-6 flex items-center justify-center gap-3 text-sm text-neutral-400">
+                <button
+                  disabled={page === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  className="rounded-lg border border-neutral-800 px-3 py-1.5 disabled:opacity-30 hover:bg-neutral-800"
+                >
+                  ← Prev
+                </button>
+                <span>
+                  Page {page + 1} of {totalPages}
+                </span>
+                <button
+                  disabled={page + 1 >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="rounded-lg border border-neutral-800 px-3 py-1.5 disabled:opacity-30 hover:bg-neutral-800"
+                >
+                  Next →
+                </button>
+              </div>
+            </>
           )}
         </main>
       </div>

@@ -3,6 +3,7 @@ import authServices from "@/services/auth/auth.services";
 import { NextResponse, NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 
+
 export async function POST(req: NextRequest) {
   try {
     let body: { email?: string; token?: string; type?: EmailOtpType };

@@ -8,6 +8,7 @@ export async function POST() {
     const result = await authServices.signOut(supabase);
 
     return NextResponse.json(result, { status: result.success ? 200 : 400 });
+    
   } catch (error) {
     console.error("POST /api/auth/sign-out error:", error);
     return NextResponse.json(

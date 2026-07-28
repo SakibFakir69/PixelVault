@@ -1,4 +1,9 @@
 
+
+# fix responsive issue
+# add logout button
+# all all images just array ( think about rendering )
+
 1. set front
 2. landing page 
 3. login + register use supabase
