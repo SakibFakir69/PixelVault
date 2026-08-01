@@ -1,17 +1,12 @@
 
 
-# fix responsive issue
-# add logout button
-# all all images just array ( think about rendering )
-
-1. set front
-2. landing page 
-3. login + register use supabase
-4. meta data
-5. 404 page
-6. not founded page
-7. middleware
 
 
-# in image keep hide usermeata data
-# user can decode and verify 
+1. add logout button 
+2. fix top bar
+3. fix left bar 
+4. make a middleware to prevent user to download and web app use
+5. add download options to watch ads
+
+<!-- future -->
+6. can register img your name 

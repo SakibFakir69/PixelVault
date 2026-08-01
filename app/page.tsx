@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, ShieldCheck, Sparkles, Layers, Zap, Flame, Filter, ChevronDown, HelpCircle as QuestionIcon } from "lucide-react";
+import Link from "next/link";
 
 interface VaultItem {
   category: string;
@@ -526,13 +527,13 @@ export default function Page() {
             <a href="#tiers" onClick={(e) => handleScroll(e, "tiers")} className="hover:text-white transition-colors duration-200">Tiers</a>
             <a href="#faq" onClick={(e) => handleScroll(e, "faq")} className="hover:text-white transition-colors duration-200">FAQ</a>
           </div>
-          <a 
-            href="#catalog" 
-            onClick={(e) => handleScroll(e, "catalog")} 
+          <Link
+          href={'/auth/sign-in'}
+          
             className="text-sm font-medium px-5 py-2.5 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:opacity-95 shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30 transition-all active:scale-95"
           >
             Enter Vault
-          </a>
+          </Link>
         </div>
       </nav>
 
@@ -565,9 +566,9 @@ export default function Page() {
           </motion.p>
           
           <motion.div variants={fadeInUp} className="flex gap-4 justify-center flex-wrap">
-            <a href="#catalog" onClick={(e) => handleScroll(e, "catalog")} className="px-8 py-4 rounded-full font-semibold bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:shadow-[0_0_30px_rgba(168,85,247,0.4)] transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0">
+            <Link href={'/home'}  className="px-8 py-4 rounded-full font-semibold bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:shadow-[0_0_30px_rgba(168,85,247,0.4)] transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0">
               Browse Vault Manifest
-            </a>
+            </Link>
             <a href="#how" onClick={(e) => handleScroll(e, "how")} className="px-8 py-4 rounded-full font-semibold border border-white/15 hover:border-white/30 hover:bg-white/[0.02] transition-all duration-200">
               How it works
             </a>
